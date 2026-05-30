@@ -1,0 +1,77 @@
+name: "Terraform CI/CD Pipeline"
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "environment/**"
+      - "modules/**"
+      - ".github/workflows/terraform.yml"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "environment/**"
+      - "modules/**"
+      - ".github/workflows/terraform.yml"
+  workflow_dispatch: # Allows manual trigger from the Actions tab
+
+# Special permissions required for Azure OIDC login (Best Practice)
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write # Required if you want to post PR plan comments
+
+jobs:
+  terraform:
+    name: "Terraform Execution"
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: environment # Runs all commands inside the parent module directory
+
+    env:
+      # These variables must be set in your GitHub Repository Secrets!
+      # We support both Service Principal Client Secret OR Azure OIDC login.
+      ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      # Uncomment the next line if you are using standard Client Secret instead of OIDC
+      ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+
+    steps:
+      # Step 1: Checkout the repository code
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # Step 2: Install and configure the requested Terraform version
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.14.8" # Matches your local validated version
+
+      # Step 3: Check Terraform formatting (Ensures code style consistency)
+      - name: Terraform Format Check
+        run: terraform fmt -check -recursive
+        continue-on-error: true # Style check won't block deployment if slightly off, but reports style issues
+
+      # Step 4: Initialize Terraform (Downloads AzureRM provider and setups backend state)
+      - name: Terraform Init
+        run: terraform init
+
+      # Step 5: Validate Terraform Configuration (Checks schemas, types, and references)
+      - name: Terraform Validate
+        run: terraform validate
+
+      # Step 6: Generate Terraform Plan (Runs on Pull Request to verify what resources will be added/modified)
+      - name: Terraform Plan
+        if: github.event_name == 'pull_request'
+        run: terraform plan -no-color -input=false
+        continue-on-error: false
+
+      # Step 7: Apply Changes (Runs ONLY on direct pushes or merges to the 'main' branch)
+      - name: Terraform Apply
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: terraform apply -auto-approve -input=false
