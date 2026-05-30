@@ -110,12 +110,12 @@ aks_clusters = {
     # Default system pool
     default_node_pool = {
       name                = "systempool"
-      node_count          = 3
-      vm_size             = "Standard_D4s_v3"
+      node_count          = 1
+      vm_size             = "Standard_D2s_v3"
       enable_auto_scaling = true
-      min_count           = 3
-      max_count           = 5
-      zones               = ["1", "2", "3"]
+      min_count           = 1
+      max_count           = 2
+      zones               = ["3"]
       max_pods            = 50
     }
 
@@ -123,29 +123,15 @@ aks_clusters = {
     additional_node_pools = {
       # Custom User Node Pool for general workloads
       workloadpool = {
-        vm_size             = "Standard_D4s_v3"
-        node_count          = 2
+        vm_size             = "Standard_D2s_v3"
+        node_count          = 1
         enable_auto_scaling = true
-        min_count           = 2
-        max_count           = 10
-        zones               = ["1", "2", "3"]
+        min_count           = 1
+        max_count           = 2
+        zones               = ["3"]
         node_labels = {
           role = "general-workloads"
         }
-      }
-      # specialized node pool with taints for high-performance GPU jobs
-      gpupool = {
-        vm_size             = "Standard_NC6s_v3"
-        node_count          = 1
-        enable_auto_scaling = false
-        os_disk_size_gb     = 256
-        node_labels = {
-          workload = "machine-learning"
-          gpu      = "nvidia"
-        }
-        node_taints = [
-          "sku=gpu:NoSchedule"
-        ]
       }
     }
 
